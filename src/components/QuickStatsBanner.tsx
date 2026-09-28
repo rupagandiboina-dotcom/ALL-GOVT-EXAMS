@@ -13,10 +13,11 @@ export const QuickStatsBanner: React.FC<QuickStatsBannerProps> = ({
   onClosingSoonClick,
   onUpcomingClick
 }) => {
-  const activeExams = exams.filter(e => e.status === 'Applications Open' || e.status === 'Closing Soon');
-  const closingSoonCount = exams.filter(e => e.status === 'Closing Soon').length;
-  const upcomingCount = exams.filter(e => e.status === 'Upcoming').length;
-  const totalVacancies = exams.reduce((acc, curr) => acc + curr.vacancies, 0);
+  const currentExams = exams.filter(e => !e.isHistorical);
+  const activeExams = currentExams.filter(e => e.status === 'Applications Open' || e.status === 'Closing Soon');
+  const closingSoonCount = currentExams.filter(e => e.status === 'Closing Soon').length;
+  const upcomingCount = currentExams.filter(e => e.status === 'Upcoming').length;
+  const totalVacancies = currentExams.reduce((acc, curr) => acc + curr.vacancies, 0);
 
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 my-6">
@@ -26,7 +27,7 @@ export const QuickStatsBanner: React.FC<QuickStatsBannerProps> = ({
         </div>
         <div>
           <span className="block text-xs font-medium text-slate-500 dark:text-slate-400">
-            Active Notifications
+            Active Applications
           </span>
           <div className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white font-mono tabular-nums">
             {activeExams.length}
@@ -40,7 +41,7 @@ export const QuickStatsBanner: React.FC<QuickStatsBannerProps> = ({
         </div>
         <div>
           <span className="block text-xs font-medium text-slate-500 dark:text-slate-400">
-            Total Vacancies Tracked
+            Current Vacancies
           </span>
           <div className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white font-mono tabular-nums">
             {totalVacancies.toLocaleString('en-IN')}+

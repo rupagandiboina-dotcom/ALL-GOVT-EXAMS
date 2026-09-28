@@ -113,9 +113,11 @@ export const Navbar: React.FC<NavbarProps> = ({
             <button
               onClick={() => setDarkMode((prev) => !prev)}
               aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
-              className="p-2 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+              title={darkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+              className="p-2 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 flex items-center gap-1.5"
             >
-              {darkMode ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4" />}
+              {darkMode ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />}
+              <span className="sr-only">{darkMode ? 'Light Mode' : 'Dark Mode'}</span>
             </button>
 
             <button
@@ -140,7 +142,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 onClick={() => handleNavClick(item.id)}
                 className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                   isActive
-                    ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400'
+                    ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 font-semibold'
                     : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'
                 }`}
               >
@@ -156,6 +158,21 @@ export const Navbar: React.FC<NavbarProps> = ({
               </button>
             );
           })}
+
+          {/* Dedicated Mobile Theme Switcher Row */}
+          <div className="pt-2 mt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between px-3 py-2 text-sm">
+            <div className="flex items-center gap-2 text-slate-700 dark:text-slate-200 font-medium">
+              {darkMode ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-indigo-500" />}
+              <span>Theme: {darkMode ? 'Dark Mode' : 'Light Mode'}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setDarkMode((prev) => !prev)}
+              className="px-3 py-1 text-xs font-semibold rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 transition-colors"
+            >
+              Switch to {darkMode ? 'Light' : 'Dark'}
+            </button>
+          </div>
         </div>
       )}
     </header>

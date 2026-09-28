@@ -8,11 +8,14 @@ import {
   LayoutGrid, 
   List, 
   CalendarDays,
-  ExternalLink
+  ExternalLink,
+  AlertCircle,
+  CheckCircle2,
+  HelpCircle
 } from 'lucide-react';
 import { ExamNotification, ExamCategory } from '../types/exam';
 import { CATEGORIES_LIST } from '../data/examsData';
-import { getCategoryBadgeStyle } from '../utils/helpers';
+import { getCategoryBadgeStyle, getDateConfidenceBadgeStyle } from '../utils/helpers';
 
 interface ExamCalendarProps {
   exams: ExamNotification[];
@@ -28,6 +31,7 @@ interface CalendarEventItem {
   day: number;
   formattedDate: string;
   badgeText: string;
+  isTentative?: boolean;
 }
 
 export const ExamCalendar: React.FC<ExamCalendarProps> = ({ exams, onSelectExam }) => {
@@ -35,32 +39,35 @@ export const ExamCalendar: React.FC<ExamCalendarProps> = ({ exams, onSelectExam 
   const [selectedEventType, setSelectedEventType] = useState<'all' | 'deadline' | 'examDate'>('all');
   const [viewMode, setViewMode] = useState<'grid' | 'timeline'>('grid');
   
-  // Available months configuration (2026-09 is index 0)
-  const availableMonths = [
-    { label: 'September 2026', year: 2026, month: 8, key: '2026-09' }, // month is 0-indexed
-    { label: 'October 2026', year: 2026, month: 9, key: '2026-10' },
-    { label: 'November 2026', year: 2026, month: 10, key: '2026-11' },
-    { label: 'December 2026', year: 2026, month: 11, key: '2026-12' },
-    { label: 'January 2027', year: 2027, month: 0, key: '2027-01' },
-    { label: 'February 2027', year: 2027, month: 1, key: '2027-02' },
-    { label: 'March 2027', year: 2027, month: 2, key: '2027-03' },
-    { label: 'April 2027', year: 2027, month: 3, key: '2027-04' },
-    { label: 'May 2027', year: 2027, month: 4, key: '2027-05' },
-  ];
+  // Available months: 8 months from September 2026 to April 2027
+  const availableMonths = useMemo(() => {
+    const list = [];
+    const baseDate = new Date(2026, 8, 1); // September 2026
+    for (let i = 0; i < 8; i++) {
+      const d = new Date(baseDate.getFullYear(), baseDate.getMonth() + i, 1);
+      const y = d.getFullYear();
+      const m = d.getMonth();
+      const key = `${y}-${String(m + 1).padStart(2, '0')}`;
+      const label = d.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
+      list.push({ label, year: y, month: m, key });
+    }
+    return list;
+  }, []);
 
-  const [currentMonthIndex, setCurrentMonthIndex] = useState(0); // Sep 2026
+  const [currentMonthIndex, setCurrentMonthIndex] = useState(0);
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
 
-  const activeMonthConfig = availableMonths[currentMonthIndex];
+  const activeMonthConfig = availableMonths[currentMonthIndex] || availableMonths[0];
 
-  // Compile calendar events from all exams
+  // Compile calendar events from all verified exams
   const allEvents = useMemo(() => {
     const list: CalendarEventItem[] = [];
 
     exams.forEach(exam => {
-      // 1. Application Deadline
-      if (exam.lastDate) {
-        const d = parseInt(exam.lastDate.split('-')[2], 10);
+      // 1. Application Deadline (only if valid YYYY-MM-DD)
+      if (exam.lastDate && /^\d{4}-\d{2}-\d{2}$/.test(exam.lastDate)) {
+        const parts = exam.lastDate.split('-');
+        const d = parseInt(parts[2], 10);
         list.push({
           id: `${exam.id}-deadline`,
           exam,
@@ -69,13 +76,15 @@ export const ExamCalendar: React.FC<ExamCalendarProps> = ({ exams, onSelectExam 
           dateStr: exam.lastDate,
           day: d,
           formattedDate: exam.lastDate,
-          badgeText: 'Deadline'
+          badgeText: 'Deadline',
+          isTentative: exam.lastDateType === 'Tentative'
         });
       }
 
       // 2. Exam Date (if sortable date exists)
-      if (exam.examDateSort) {
-        const d = parseInt(exam.examDateSort.split('-')[2], 10);
+      if (exam.examDateSort && /^\d{4}-\d{2}-\d{2}$/.test(exam.examDateSort)) {
+        const parts = exam.examDateSort.split('-');
+        const d = parseInt(parts[2], 10);
         list.push({
           id: `${exam.id}-exam`,
           exam,
@@ -84,13 +93,15 @@ export const ExamCalendar: React.FC<ExamCalendarProps> = ({ exams, onSelectExam 
           dateStr: exam.examDateSort,
           day: d,
           formattedDate: exam.examDate,
-          badgeText: 'Exam Date'
+          badgeText: exam.examDateType === 'Tentative' ? 'Tentative Exam' : 'Exam Date',
+          isTentative: exam.examDateType === 'Tentative'
         });
       }
 
       // 3. Application Start Date
-      if (exam.applicationStartDate) {
-        const d = parseInt(exam.applicationStartDate.split('-')[2], 10);
+      if (exam.applicationStartDate && /^\d{4}-\d{2}-\d{2}$/.test(exam.applicationStartDate)) {
+        const parts = exam.applicationStartDate.split('-');
+        const d = parseInt(parts[2], 10);
         list.push({
           id: `${exam.id}-start`,
           exam,
@@ -116,327 +127,368 @@ export const ExamCalendar: React.FC<ExamCalendarProps> = ({ exams, onSelectExam 
     });
   }, [allEvents, selectedCategory, selectedEventType]);
 
-  // Current Month's Events
+  // Exams with unannounced dates
+  const unannouncedExams = useMemo(() => {
+    return exams.filter(exam => {
+      const catMatch = selectedCategory === 'All' || exam.category === selectedCategory;
+      const hasUnannounced = exam.examDate.toLowerCase().includes('not announced') || exam.examDate.toLowerCase().includes('information not');
+      return catMatch && hasUnannounced;
+    });
+  }, [exams, selectedCategory]);
+
+  // Events belonging to currently viewed month
   const currentMonthEvents = useMemo(() => {
-    return filteredEvents.filter(e => e.dateStr.startsWith(activeMonthConfig.key));
+    return filteredEvents.filter(ev => {
+      return ev.dateStr.startsWith(activeMonthConfig.key);
+    });
   }, [filteredEvents, activeMonthConfig.key]);
 
-  // Map of events by day in active month
+  // Map events by day number
   const eventsByDay = useMemo(() => {
-    const map: Record<number, CalendarEventItem[]> = {};
-    currentMonthEvents.forEach(e => {
-      if (!map[e.day]) map[e.day] = [];
-      map[e.day].push(e);
+    const map = new Map<number, CalendarEventItem[]>();
+    currentMonthEvents.forEach(ev => {
+      const existing = map.get(ev.day) || [];
+      existing.push(ev);
+      map.set(ev.day, existing);
     });
     return map;
   }, [currentMonthEvents]);
 
-  // Compute calendar days grid
-  const calendarGrid = useMemo(() => {
-    const firstDayIndex = new Date(activeMonthConfig.year, activeMonthConfig.month, 1).getDay(); // 0 = Sun
-    const totalDaysInMonth = new Date(activeMonthConfig.year, activeMonthConfig.month + 1, 0).getDate();
-
-    const days: (number | null)[] = [];
-    for (let i = 0; i < firstDayIndex; i++) {
-      days.push(null);
-    }
-    for (let d = 1; d <= totalDaysInMonth; d++) {
-      days.push(d);
-    }
-    return days;
+  // Days in active month
+  const daysInMonth = useMemo(() => {
+    const year = activeMonthConfig.year;
+    const month = activeMonthConfig.month;
+    return new Date(year, month + 1, 0).getDate();
   }, [activeMonthConfig]);
 
-  // Selected Day Events or All month events
-  const displayedEvents = useMemo(() => {
-    if (selectedDay !== null) {
-      return currentMonthEvents.filter(e => e.day === selectedDay);
+  // Starting day of week for first day of active month (0=Sun, 1=Mon, ...)
+  const startDayOfWeek = useMemo(() => {
+    const year = activeMonthConfig.year;
+    const month = activeMonthConfig.month;
+    return new Date(year, month, 1).getDay();
+  }, [activeMonthConfig]);
+
+  // Selected day events
+  const selectedDayEvents = useMemo(() => {
+    if (!selectedDay) return [];
+    return eventsByDay.get(selectedDay) || [];
+  }, [selectedDay, eventsByDay]);
+
+  const handlePrevMonth = () => {
+    if (currentMonthIndex > 0) {
+      setCurrentMonthIndex(prev => prev - 1);
+      setSelectedDay(null);
     }
-    return currentMonthEvents;
-  }, [selectedDay, currentMonthEvents]);
+  };
+
+  const handleNextMonth = () => {
+    if (currentMonthIndex < availableMonths.length - 1) {
+      setCurrentMonthIndex(prev => prev + 1);
+      setSelectedDay(null);
+    }
+  };
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-150">
-      {/* Calendar Header Banner */}
-      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 sm:p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400 text-xs font-bold uppercase tracking-wider mb-1">
-            <CalendarIcon className="w-4 h-4" />
-            <span>Interactive Exam Schedule & Deadlines</span>
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white">
-            ExamRadar Calendar
-          </h1>
-          <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
-            Track application deadlines, admit card releases, and computer-based test dates in one calendar.
-          </p>
-        </div>
-
-        {/* Legend */}
-        <div className="flex flex-wrap items-center gap-3 text-xs bg-slate-50 dark:bg-slate-800/60 p-3 rounded-xl border border-slate-200/80 dark:border-slate-700/80">
-          <div className="flex items-center gap-1.5 font-medium text-slate-700 dark:text-slate-300">
-            <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
-            <span>Application Deadline</span>
-          </div>
-          <div className="flex items-center gap-1.5 font-medium text-slate-700 dark:text-slate-300">
-            <span className="w-2.5 h-2.5 rounded-full bg-indigo-500" />
-            <span>Exam Date</span>
-          </div>
-          <div className="flex items-center gap-1.5 font-medium text-slate-700 dark:text-slate-300">
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
-            <span>Applications Open</span>
-          </div>
+    <div className="space-y-6 animate-in fade-in duration-200">
+      {/* Disclaimer Notice */}
+      <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 flex items-center justify-between gap-3 text-xs text-slate-600 dark:text-slate-300">
+        <div className="flex items-center gap-2">
+          <AlertCircle className="w-4 h-4 text-indigo-500 shrink-0" />
+          <span>
+            <strong>Official Source Verification:</strong> Confirmed dates are taken from official notifications and calendars. Tentative dates are clearly tagged and subject to change by recruiting authorities.
+          </span>
         </div>
       </div>
 
-      {/* Control Toolbar: Month Navigator, View Switcher, Category filter */}
-      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
-        {/* Month Pager */}
-        <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-start">
+      {/* Control Bar: Filters & View Switcher */}
+      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
+        {/* Category Pill Selector */}
+        <div className="flex items-center gap-2 overflow-x-auto w-full md:w-auto pb-1 md:pb-0 scrollbar-none">
+          <Filter className="w-4 h-4 text-slate-400 shrink-0 ml-1" />
           <button
-            onClick={() => {
-              setCurrentMonthIndex(prev => Math.max(0, prev - 1));
-              setSelectedDay(null);
-            }}
-            disabled={currentMonthIndex === 0}
-            aria-label="Previous month"
-            className="p-2 rounded-lg border border-slate-200 dark:border-slate-700 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+            onClick={() => setSelectedCategory('All')}
+            className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-colors shrink-0 ${
+              selectedCategory === 'All'
+                ? 'bg-indigo-600 text-white shadow-sm'
+                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+            }`}
           >
-            <ChevronLeft className="w-4 h-4" />
+            All Categories
           </button>
-          
-          <span className="text-base font-bold text-slate-900 dark:text-white px-2 min-w-[150px] text-center font-mono">
-            {activeMonthConfig.label}
-          </span>
-
-          <button
-            onClick={() => {
-              setCurrentMonthIndex(prev => Math.min(availableMonths.length - 1, prev + 1));
-              setSelectedDay(null);
-            }}
-            disabled={currentMonthIndex === availableMonths.length - 1}
-            aria-label="Next month"
-            className="p-2 rounded-lg border border-slate-200 dark:border-slate-700 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-          >
-            <ChevronRight className="w-4 h-4" />
-          </button>
-        </div>
-
-        {/* View Toggle (Grid vs Timeline) & Filters */}
-        <div className="flex items-center gap-2.5 w-full sm:w-auto flex-wrap justify-between sm:justify-end">
-          {/* Segmented Grid / Timeline control */}
-          <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-lg">
+          {CATEGORIES_LIST.map((cat) => (
             <button
-              onClick={() => setViewMode('grid')}
-              className={`px-3 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-colors ${
-                viewMode === 'grid'
-                  ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              key={cat.name}
+              onClick={() => setSelectedCategory(cat.name)}
+              className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-colors shrink-0 ${
+                selectedCategory === cat.name
+                  ? 'bg-indigo-600 text-white shadow-sm'
+                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
               }`}
             >
+              {cat.name}
+            </button>
+          ))}
+        </div>
+
+        {/* Event Type & View Mode Toggles */}
+        <div className="flex items-center gap-2.5 w-full md:w-auto justify-end">
+          {/* Event Filter */}
+          <select
+            value={selectedEventType}
+            onChange={(e) => setSelectedEventType(e.target.value as any)}
+            className="text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+          >
+            <option value="all">All Events</option>
+            <option value="deadline">Application Deadlines</option>
+            <option value="examDate">Examination Dates</option>
+          </select>
+
+          {/* View Mode Toggle */}
+          <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-lg border border-slate-200 dark:border-slate-700">
+            <button
+              onClick={() => setViewMode('grid')}
+              className={`p-1.5 rounded-md text-xs flex items-center gap-1 font-medium transition-colors ${
+                viewMode === 'grid'
+                  ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs'
+                  : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+              }`}
+              title="Month Grid View"
+            >
               <LayoutGrid className="w-3.5 h-3.5" />
-              <span>Grid</span>
+              <span className="hidden sm:inline">Month Grid</span>
             </button>
             <button
               onClick={() => setViewMode('timeline')}
-              className={`px-3 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-colors ${
+              className={`p-1.5 rounded-md text-xs flex items-center gap-1 font-medium transition-colors ${
                 viewMode === 'timeline'
-                  ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                  ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs'
+                  : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
               }`}
+              title="Timeline List View"
             >
               <List className="w-3.5 h-3.5" />
-              <span>Timeline</span>
+              <span className="hidden sm:inline">Timeline</span>
             </button>
           </div>
-
-          {/* Category Dropdown */}
-          <select
-            value={selectedCategory}
-            onChange={(e) => {
-              setSelectedCategory(e.target.value as any);
-              setSelectedDay(null);
-            }}
-            className="p-2 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          >
-            <option value="All">All Categories</option>
-            {CATEGORIES_LIST.map(c => (
-              <option key={c.name} value={c.name}>{c.name}</option>
-            ))}
-          </select>
-
-          {/* Event Type Dropdown */}
-          <select
-            value={selectedEventType}
-            onChange={(e) => {
-              setSelectedEventType(e.target.value as any);
-              setSelectedDay(null);
-            }}
-            className="p-2 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          >
-            <option value="all">All Event Types</option>
-            <option value="deadline">Only Deadlines</option>
-            <option value="examDate">Only Exam Dates</option>
-          </select>
         </div>
       </div>
 
       {/* MONTH GRID VIEW */}
       {viewMode === 'grid' && (
-        <div className="space-y-6">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 sm:p-6 shadow-sm overflow-x-auto">
-            {/* Weekday headers */}
-            <div className="grid grid-cols-7 gap-1 text-center font-bold text-xs text-slate-400 uppercase tracking-wider mb-2">
-              <span className="text-rose-500">Sun</span>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Main 7-col calendar matrix */}
+          <div className="lg:col-span-2 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 sm:p-6 shadow-sm">
+            {/* Month Navigation Header */}
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-2">
+                <CalendarDays className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+                <h2 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white">
+                  {activeMonthConfig.label}
+                </h2>
+                <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 font-mono font-bold">
+                  {currentMonthEvents.length} events
+                </span>
+              </div>
+
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={handlePrevMonth}
+                  disabled={currentMonthIndex === 0}
+                  className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                  aria-label="Previous month"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={handleNextMonth}
+                  disabled={currentMonthIndex === availableMonths.length - 1}
+                  className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                  aria-label="Next month"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Days of Week Header */}
+            <div className="grid grid-cols-7 gap-1 text-center text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+              <span>Sun</span>
               <span>Mon</span>
               <span>Tue</span>
               <span>Wed</span>
               <span>Thu</span>
               <span>Fri</span>
-              <span className="text-indigo-500">Sat</span>
+              <span>Sat</span>
             </div>
 
-            {/* Days Grid */}
-            <div className="grid grid-cols-7 gap-1.5 sm:gap-2">
-              {calendarGrid.map((day, idx) => {
-                if (day === null) {
-                  return <div key={`empty-${idx}`} className="h-16 sm:h-20 bg-slate-50/50 dark:bg-slate-800/20 rounded-xl" />;
-                }
+            {/* Day Cells Matrix */}
+            <div className="grid grid-cols-7 gap-1 sm:gap-1.5">
+              {/* Empty leading padding days */}
+              {Array.from({ length: startDayOfWeek }).map((_, idx) => (
+                <div key={`empty-${idx}`} className="h-16 sm:h-20 rounded-lg bg-slate-50/50 dark:bg-slate-800/20" />
+              ))}
 
-                const dayEvents = eventsByDay[day] || [];
-                const hasDeadlines = dayEvents.some(e => e.type === 'deadline');
-                const hasExams = dayEvents.some(e => e.type === 'examDate');
-                const hasStarts = dayEvents.some(e => e.type === 'startDate');
-                const isSelected = selectedDay === day;
+              {/* Real month days */}
+              {Array.from({ length: daysInMonth }).map((_, idx) => {
+                const dayNum = idx + 1;
+                const events = eventsByDay.get(dayNum) || [];
+                const isSelected = selectedDay === dayNum;
+                const hasDeadline = events.some(e => e.type === 'deadline');
+                const hasExam = events.some(e => e.type === 'examDate');
 
                 return (
-                  <button
-                    key={`day-${day}`}
-                    onClick={() => setSelectedDay(prev => prev === day ? null : day)}
-                    className={`h-16 sm:h-20 p-1.5 sm:p-2 rounded-xl border text-left flex flex-col justify-between transition-all duration-150 relative ${
+                  <div
+                    key={`day-${dayNum}`}
+                    onClick={() => setSelectedDay(dayNum)}
+                    className={`h-16 sm:h-20 p-1.5 rounded-lg border cursor-pointer transition-all flex flex-col justify-between ${
                       isSelected
-                        ? 'border-indigo-600 dark:border-indigo-400 bg-indigo-50/90 dark:bg-indigo-950/60 ring-2 ring-indigo-500/20 shadow-sm'
-                        : dayEvents.length > 0
-                        ? 'border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-800/60 hover:border-indigo-300'
-                        : 'border-slate-100 dark:border-slate-800/80 bg-white dark:bg-slate-900/60 hover:bg-slate-50 dark:hover:bg-slate-800/40'
+                        ? 'border-indigo-600 dark:border-indigo-400 bg-indigo-50/50 dark:bg-indigo-950/40 shadow-xs'
+                        : events.length > 0
+                        ? 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-800/40 hover:border-indigo-300 dark:hover:border-indigo-700'
+                        : 'border-slate-100 dark:border-slate-800/60 bg-white dark:bg-slate-900/60 hover:bg-slate-50 dark:hover:bg-slate-800/40'
                     }`}
                   >
-                    <div className="flex items-center justify-between w-full">
+                    <div className="flex items-center justify-between">
                       <span className={`text-xs font-bold font-mono ${
                         isSelected 
-                          ? 'text-indigo-600 dark:text-indigo-400 font-extrabold' 
-                          : 'text-slate-800 dark:text-slate-200'
+                          ? 'text-indigo-600 dark:text-indigo-400' 
+                          : 'text-slate-700 dark:text-slate-300'
                       }`}>
-                        {day}
+                        {dayNum}
                       </span>
-                      {dayEvents.length > 0 && (
-                        <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-mono">
-                          {dayEvents.length}
+                      {events.length > 0 && (
+                        <div className="flex items-center gap-0.5">
+                          {hasDeadline && <span className="w-1.5 h-1.5 rounded-full bg-amber-500" title="Application Deadline" />}
+                          {hasExam && <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" title="Exam Date" />}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Compact event pill */}
+                    <div className="space-y-0.5 overflow-hidden">
+                      {events.slice(0, 1).map((ev) => (
+                        <div
+                          key={ev.id}
+                          className={`text-[9px] truncate px-1 py-0.2 rounded font-medium ${
+                            ev.type === 'deadline'
+                              ? 'bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300'
+                              : 'bg-indigo-100 dark:bg-indigo-950 text-indigo-800 dark:text-indigo-300'
+                          }`}
+                        >
+                          {ev.exam.shortName}
+                        </div>
+                      ))}
+                      {events.length > 1 && (
+                        <span className="text-[9px] text-slate-400 font-mono block text-right">
+                          +{events.length - 1} more
                         </span>
                       )}
                     </div>
-
-                    {/* Indicator dots */}
-                    <div className="flex items-center gap-1 mt-auto flex-wrap">
-                      {hasDeadlines && (
-                        <span className="w-2 h-2 rounded-full bg-amber-500 shadow-sm" title="Application Deadline" />
-                      )}
-                      {hasExams && (
-                        <span className="w-2 h-2 rounded-full bg-indigo-500 shadow-sm" title="Exam Date" />
-                      )}
-                      {hasStarts && (
-                        <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-sm" title="Applications Open" />
-                      )}
-                    </div>
-                  </button>
+                  </div>
                 );
               })}
             </div>
+
+            {/* Calendar Legend */}
+            <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between flex-wrap gap-3 text-xs text-slate-500">
+              <div className="flex items-center gap-4">
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
+                  <span>Application Deadline</span>
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-full bg-indigo-500" />
+                  <span>Exam Schedule</span>
+                </span>
+              </div>
+              <span className="text-[11px] text-slate-400">
+                Click any day to inspect detailed events
+              </span>
+            </div>
           </div>
 
-          {/* Details of events for selected day or active month */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                <CalendarDays className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
-                <span>
-                  {selectedDay !== null 
-                    ? `Events on ${activeMonthConfig.label.split(' ')[0]} ${selectedDay}, ${activeMonthConfig.year}` 
-                    : `All Scheduled Events in ${activeMonthConfig.label}`}
-                </span>
-                <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-mono">
-                  {displayedEvents.length} events
-                </span>
-              </h3>
+          {/* Right Panel: Selected Day Details or Upcoming Month Highlights */}
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 sm:p-6 shadow-sm flex flex-col justify-between">
+            <div>
+              <div className="pb-3 border-b border-slate-100 dark:border-slate-800 mb-4">
+                <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                  <span>
+                    {selectedDay 
+                      ? `Events on ${activeMonthConfig.label.split(' ')[0]} ${selectedDay}, ${activeMonthConfig.year}`
+                      : `${activeMonthConfig.label} Milestone Schedule`
+                    }
+                  </span>
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  {selectedDay 
+                    ? `${selectedDayEvents.length} scheduled milestone(s) on this date` 
+                    : `Showing all events scheduled for ${activeMonthConfig.label}`
+                  }
+                </p>
+              </div>
 
-              {selectedDay !== null && (
-                <button
-                  onClick={() => setSelectedDay(null)}
-                  className="text-xs text-indigo-600 dark:text-indigo-400 font-semibold hover:underline"
-                >
-                  Show All {activeMonthConfig.label.split(' ')[0]} Events
-                </button>
-              )}
+              {/* Event Cards */}
+              <div className="space-y-3 max-h-[380px] overflow-y-auto pr-1">
+                {(selectedDay ? selectedDayEvents : currentMonthEvents).length === 0 ? (
+                  <div className="py-10 text-center text-slate-400 text-xs">
+                    <CalendarIcon className="w-8 h-8 text-slate-300 dark:text-slate-700 mx-auto mb-2" />
+                    <span>No scheduled deadlines or exams for this date</span>
+                  </div>
+                ) : (
+                  (selectedDay ? selectedDayEvents : currentMonthEvents).map((ev) => {
+                    const catStyle = getCategoryBadgeStyle(ev.exam.category);
+                    return (
+                      <div
+                        key={ev.id}
+                        onClick={() => onSelectExam(ev.exam)}
+                        className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-indigo-400/80 hover:shadow-xs transition-all cursor-pointer group bg-slate-50/50 dark:bg-slate-800/30"
+                      >
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span className={`text-[10px] font-semibold px-2 py-0.5 rounded border ${catStyle}`}>
+                            {ev.exam.category}
+                          </span>
+                          <div className="flex items-center gap-1">
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${
+                              ev.type === 'deadline'
+                                ? 'bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300'
+                                : 'bg-indigo-100 dark:bg-indigo-950 text-indigo-800 dark:text-indigo-300'
+                            }`}>
+                              {ev.badgeText}
+                            </span>
+                            {ev.isTentative && (
+                              <span className="text-[9px] px-1.5 py-0.2 rounded bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800">
+                                Tentative
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        <h4 className="text-xs font-bold text-slate-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors line-clamp-2">
+                          {ev.exam.title}
+                        </h4>
+
+                        <div className="mt-2 pt-2 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-[11px] text-slate-500">
+                          <span className="font-mono font-medium">{ev.formattedDate}</span>
+                          <span className="text-indigo-600 dark:text-indigo-400 font-semibold group-hover:underline flex items-center gap-0.5">
+                            <span>Details</span>
+                            <ExternalLink className="w-3 h-3" />
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
             </div>
 
-            {displayedEvents.length === 0 ? (
-              <div className="p-8 text-center rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-500 text-xs">
-                No events scheduled for this selection. Click another date on the calendar.
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
-                {displayedEvents.map((item) => {
-                  const categoryBadge = getCategoryBadgeStyle(item.exam.category);
-
-                  return (
-                    <div
-                      key={item.id}
-                      onClick={() => onSelectExam(item.exam)}
-                      className={`p-4 rounded-xl border transition-all cursor-pointer bg-white dark:bg-slate-900 hover:shadow-md ${
-                        item.type === 'deadline'
-                          ? 'border-l-4 border-l-amber-500 border-slate-200 dark:border-slate-800 hover:border-amber-400'
-                          : item.type === 'examDate'
-                          ? 'border-l-4 border-l-indigo-500 border-slate-200 dark:border-slate-800 hover:border-indigo-400'
-                          : 'border-l-4 border-l-emerald-500 border-slate-200 dark:border-slate-800 hover:border-emerald-400'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between gap-2 mb-2">
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider ${
-                          item.type === 'deadline'
-                            ? 'bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300'
-                            : item.type === 'examDate'
-                            ? 'bg-indigo-100 dark:bg-indigo-950 text-indigo-800 dark:text-indigo-300'
-                            : 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300'
-                        }`}>
-                          {item.badgeText}
-                        </span>
-
-                        <span className="text-xs font-mono font-bold text-slate-800 dark:text-slate-200 tabular-nums">
-                          {item.dateStr}
-                        </span>
-                      </div>
-
-                      <h4 className="font-bold text-sm text-slate-900 dark:text-white line-clamp-1 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
-                        {item.exam.shortName}
-                      </h4>
-                      
-                      <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-1 mb-3">
-                        {item.exam.organization}
-                      </p>
-
-                      <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[11px]">
-                        <span className={`px-2 py-0.5 rounded border ${categoryBadge}`}>
-                          {item.exam.category}
-                        </span>
-
-                        <span className="font-semibold text-indigo-600 dark:text-indigo-400 flex items-center gap-1">
-                          <span>Details</span>
-                          <ExternalLink className="w-3 h-3" />
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+            {selectedDay && (
+              <button
+                onClick={() => setSelectedDay(null)}
+                className="mt-4 w-full py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              >
+                Clear Day Selection
+              </button>
             )}
           </div>
         </div>
@@ -445,51 +497,103 @@ export const ExamCalendar: React.FC<ExamCalendarProps> = ({ exams, onSelectExam 
       {/* TIMELINE LIST VIEW */}
       {viewMode === 'timeline' && (
         <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 sm:p-6 shadow-sm space-y-4">
-          <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
-            <Clock className="w-5 h-5 text-indigo-500" />
-            <span>Chronological Exam Roadmap ({filteredEvents.length} Events)</span>
-          </h2>
+          <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+            <div>
+              <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <List className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                <span>Comprehensive Examination Chronology ({filteredEvents.length} events)</span>
+              </h2>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Sorted chronologically by date. Verified against official notifications.
+              </p>
+            </div>
+          </div>
 
           <div className="divide-y divide-slate-100 dark:divide-slate-800">
-            {filteredEvents.map((item) => (
-              <div
-                key={item.id}
-                onClick={() => onSelectExam(item.exam)}
-                className="py-3.5 px-3 rounded-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer transition-colors"
-              >
-                <div className="flex items-center gap-3">
-                  <span className={`w-3.5 h-3.5 rounded-full shrink-0 ${
-                    item.type === 'deadline'
-                      ? 'bg-amber-500 ring-4 ring-amber-100 dark:ring-amber-950'
-                      : item.type === 'examDate'
-                      ? 'bg-indigo-500 ring-4 ring-indigo-100 dark:ring-indigo-950'
-                      : 'bg-emerald-500 ring-4 ring-emerald-100 dark:ring-emerald-950'
-                  }`} />
+            {filteredEvents.map((ev) => {
+              const catStyle = getCategoryBadgeStyle(ev.exam.category);
+              return (
+                <div
+                  key={ev.id}
+                  onClick={() => onSelectExam(ev.exam)}
+                  className="py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 group hover:bg-slate-50/60 dark:hover:bg-slate-800/40 p-2 rounded-xl transition-colors cursor-pointer"
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="w-24 shrink-0 font-mono text-xs font-bold text-slate-900 dark:text-white pt-0.5">
+                      {ev.dateStr}
+                    </div>
 
-                  <div>
-                    <h4 className="text-sm font-semibold text-slate-900 dark:text-white hover:text-indigo-600 dark:hover:text-indigo-400">
-                      {item.title}
-                    </h4>
-                    <p className="text-xs text-slate-400">
-                      {item.exam.organization} · {item.exam.category} · {item.exam.state}
-                    </p>
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className={`text-[10px] font-semibold px-2 py-0.5 rounded border ${catStyle}`}>
+                          {ev.exam.category}
+                        </span>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${
+                          ev.type === 'deadline'
+                            ? 'bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300'
+                            : 'bg-indigo-100 dark:bg-indigo-950 text-indigo-800 dark:text-indigo-300'
+                        }`}>
+                          {ev.badgeText}
+                        </span>
+                        {ev.isTentative && (
+                          <span className="text-[9px] px-1.5 py-0.2 rounded bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800">
+                            Tentative
+                          </span>
+                        )}
+                      </div>
+
+                      <h4 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+                        {ev.exam.title}
+                      </h4>
+
+                      <p className="text-xs text-slate-500 line-clamp-1">
+                        {ev.exam.organization} · {ev.exam.postsSummary}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3 shrink-0 self-end sm:self-center">
+                    <span className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 group-hover:underline flex items-center gap-1">
+                      <span>View Details</span>
+                      <ExternalLink className="w-3.5 h-3.5" />
+                    </span>
                   </div>
                 </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
-                <div className="flex items-center gap-3 self-end sm:self-center">
-                  <span className="font-mono text-xs font-bold text-slate-700 dark:text-slate-300 tabular-nums">
-                    {item.dateStr}
-                  </span>
-                  <span className={`text-[10px] font-semibold px-2.5 py-0.5 rounded ${
-                    item.type === 'deadline'
-                      ? 'bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300'
-                      : item.type === 'examDate'
-                      ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300'
-                      : 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300'
-                  }`}>
-                    {item.badgeText}
-                  </span>
+      {/* Awaited / Tentative Announcements Section */}
+      {unannouncedExams.length > 0 && (
+        <div className="bg-slate-50 dark:bg-slate-900 rounded-2xl border border-dashed border-slate-300 dark:border-slate-800 p-5 sm:p-6 space-y-3">
+          <div className="flex items-center gap-2">
+            <HelpCircle className="w-4 h-4 text-slate-500" />
+            <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+              Recruitments with Dates Awaited / Not Officially Announced Yet
+            </h3>
+          </div>
+          <p className="text-xs text-slate-500">
+            In accordance with ExamRadar’s strict accuracy standard, we do not guess or fabricate dates. The following upcoming examinations will have dates updated immediately upon official gazette publication.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 pt-2">
+            {unannouncedExams.map(exam => (
+              <div
+                key={exam.id}
+                onClick={() => onSelectExam(exam)}
+                className="p-3 bg-white dark:bg-slate-800/80 rounded-xl border border-slate-200 dark:border-slate-700/80 hover:border-indigo-400 transition-colors cursor-pointer"
+              >
+                <div className="flex items-center justify-between text-[10px] text-slate-400 mb-1">
+                  <span>{exam.category}</span>
+                  <span className="font-semibold text-slate-500 dark:text-slate-400">Date Awaited</span>
                 </div>
+                <h4 className="text-xs font-bold text-slate-800 dark:text-slate-100 line-clamp-1">
+                  {exam.shortName}
+                </h4>
+                <p className="text-[11px] text-slate-500 mt-1 line-clamp-1">
+                  {exam.organization}
+                </p>
               </div>
             ))}
           </div>

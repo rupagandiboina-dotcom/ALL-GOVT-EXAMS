@@ -6,13 +6,18 @@ import {
   ChevronRight, 
   Bookmark, 
   MapPin, 
-  Briefcase
+  Briefcase,
+  CheckCircle2,
+  AlertCircle,
+  HelpCircle,
+  History
 } from 'lucide-react';
 import { ExamNotification } from '../types/exam';
 import { 
   getStatusBadgeStyle, 
   getCategoryBadgeStyle, 
-  formatDeadlineText 
+  formatDeadlineText,
+  getDateConfidenceBadgeStyle
 } from '../utils/helpers';
 
 interface ExamCardProps {
@@ -31,13 +36,16 @@ export const ExamCard: React.FC<ExamCardProps> = ({
   const statusStyle = getStatusBadgeStyle(exam.status);
   const categoryStyle = getCategoryBadgeStyle(exam.category);
   const deadline = formatDeadlineText(exam.lastDate, exam.status, exam.applicationStartDate);
+  const examDateConfidence = getDateConfidenceBadgeStyle(exam.examDateType);
 
   return (
-    <article className="group relative bg-white dark:bg-slate-900 rounded-xl border border-slate-200/90 dark:border-slate-800 p-5 flex flex-col justify-between hover:border-indigo-400/80 dark:hover:border-indigo-500/60 hover:shadow-md transition-all duration-200">
+    <article className={`group relative bg-white dark:bg-slate-900 rounded-xl border p-5 flex flex-col justify-between hover:border-indigo-400/80 dark:hover:border-indigo-500/60 hover:shadow-md transition-all duration-200 ${
+      exam.isHistorical ? 'border-dashed border-slate-300 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/50' : 'border-slate-200/90 dark:border-slate-800'
+    }`}>
       <div>
-        {/* Top bar of card: Category, Location, and Bookmark */}
+        {/* Top bar of card: Category, Location, and Status Badge */}
         <div className="flex items-center justify-between gap-2 mb-3">
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-1.5 flex-wrap">
             <span className={`text-[11px] font-semibold px-2 py-0.5 rounded border ${categoryStyle}`}>
               {exam.category}
             </span>
@@ -45,6 +53,12 @@ export const ExamCard: React.FC<ExamCardProps> = ({
               <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
               <span>{exam.state}</span>
             </span>
+            {exam.isHistorical && (
+              <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.2 rounded bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
+                <History className="w-3 h-3" />
+                <span>Historical</span>
+              </span>
+            )}
           </div>
 
           <div className="flex items-center gap-1.5">
@@ -86,41 +100,54 @@ export const ExamCard: React.FC<ExamCardProps> = ({
           {exam.title}
         </h3>
         
-        <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-1 mb-4 flex items-center gap-1">
-          <Briefcase className="w-3 h-3 text-slate-400 shrink-0" />
+        <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-1 mb-3.5 flex items-center gap-1">
+          <Briefcase className="w-3.5 h-3.5 text-slate-400 shrink-0" />
           <span>{exam.organization}</span>
         </p>
 
         {/* Vacancies & Qualification Highlight */}
-        <div className="grid grid-cols-2 gap-2 mb-4 p-2.5 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800">
+        <div className="grid grid-cols-2 gap-2 mb-3.5 p-2.5 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800">
           <div>
-            <span className="block text-[10px] uppercase tracking-wider text-slate-400 dark:text-slate-500 font-semibold">
-              Total Vacancies
-            </span>
+            <div className="flex items-center justify-between text-[10px] uppercase tracking-wider text-slate-400 dark:text-slate-500 font-semibold mb-0.5">
+              <span>Vacancies</span>
+              {exam.vacanciesStatus && (
+                <span className={`text-[9px] px-1 rounded font-medium ${
+                  exam.vacanciesStatus === 'Confirmed' 
+                    ? 'bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300' 
+                    : exam.vacanciesStatus === 'Tentative'
+                    ? 'bg-amber-100 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300'
+                    : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
+                }`}>
+                  {exam.vacanciesStatus}
+                </span>
+              )}
+            </div>
             <div className="flex items-center gap-1 text-slate-800 dark:text-slate-200 font-bold text-sm font-mono tabular-nums">
               <Users className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
               <span>{exam.vacancies > 0 ? exam.vacancies.toLocaleString('en-IN') : 'To be notified'}</span>
             </div>
           </div>
           <div>
-            <span className="block text-[10px] uppercase tracking-wider text-slate-400 dark:text-slate-500 font-semibold">
+            <span className="block text-[10px] uppercase tracking-wider text-slate-400 dark:text-slate-500 font-semibold mb-0.5">
               Min Qualification
             </span>
             <span className="text-xs font-semibold text-slate-700 dark:text-slate-300 truncate block">
-              {exam.qualificationText.split(' ')[0]} {exam.qualification}
+              {exam.qualification}
             </span>
           </div>
         </div>
 
         {/* Important Date Milestones */}
-        <div className="space-y-1.5 text-xs text-slate-600 dark:text-slate-300 mb-4">
+        <div className="space-y-2 text-xs text-slate-600 dark:text-slate-300 mb-4">
           <div className="flex items-center justify-between">
             <span className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400">
               <Clock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-              <span>Application Deadline:</span>
+              <span>Application Last Date:</span>
             </span>
-            <span className={`font-mono tabular-nums font-semibold flex items-center gap-1.5 ${deadline.urgent ? 'text-amber-600 dark:text-amber-400' : 'text-slate-800 dark:text-slate-200'}`}>
-              <span>{exam.lastDate}</span>
+            <div className="flex items-center gap-1.5">
+              <span className={`font-mono tabular-nums font-semibold ${deadline.urgent ? 'text-amber-600 dark:text-amber-400' : 'text-slate-800 dark:text-slate-200'}`}>
+                {exam.lastDate && exam.lastDate !== 'Not announced yet' ? exam.lastDate : 'Not announced yet'}
+              </span>
               <span className={`text-[10px] font-sans px-1.5 py-0.2 rounded font-semibold ${
                 deadline.urgent 
                   ? 'bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300' 
@@ -128,11 +155,11 @@ export const ExamCard: React.FC<ExamCardProps> = ({
                   ? 'bg-indigo-100 dark:bg-indigo-950 text-indigo-800 dark:text-indigo-300'
                   : exam.status === 'Closed'
                   ? 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'
-                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
+                  : 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300'
               }`}>
                 {deadline.text}
               </span>
-            </span>
+            </div>
           </div>
 
           <div className="flex items-center justify-between">
@@ -140,17 +167,23 @@ export const ExamCard: React.FC<ExamCardProps> = ({
               <CalendarIcon className="w-3.5 h-3.5 text-slate-400 shrink-0" />
               <span>Exam Schedule:</span>
             </span>
-            <span className="font-medium text-slate-700 dark:text-slate-300 line-clamp-1 text-right">
-              {exam.examDate}
-            </span>
+            <div className="flex items-center gap-1.5 max-w-[60%] justify-end">
+              <span className="font-medium text-slate-700 dark:text-slate-300 line-clamp-1 text-right text-xs">
+                {exam.examDate}
+              </span>
+              <span className={`text-[9px] px-1.5 py-0.2 rounded font-medium shrink-0 border ${examDateConfidence.bg}`}>
+                {examDateConfidence.label}
+              </span>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Card Footer: View Details CTA */}
-      <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
-        <span className="text-[11px] text-slate-400 truncate max-w-[170px]" title={exam.postsSummary}>
-          {exam.postsSummary}
+      {/* Card Footer: Last Verified date + View Details CTA */}
+      <div className="pt-2.5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+        <span className="text-[10px] text-slate-400 font-medium flex items-center gap-1">
+          <CheckCircle2 className="w-3 h-3 text-emerald-500 shrink-0" />
+          <span>Verified: {exam.lastVerified}</span>
         </span>
 
         <button

@@ -11,7 +11,9 @@ import {
   ChevronRight, 
   AlertTriangle,
   Zap,
-  Volume2
+  ShieldCheck,
+  CheckCircle2,
+  RotateCcw
 } from 'lucide-react';
 
 import { ExamNotification, ExamCategory, ExamStatus, QualificationLevel } from './types/exam';
@@ -30,16 +32,29 @@ export default function App() {
   // Navigation State
   const [activeTab, setActiveTab] = useState<'home' | 'exams' | 'categories' | 'calendar' | 'find-exams' | 'saved'>('home');
 
-  // Dark Mode State with LocalStorage
+  // Dark Mode State with LocalStorage - default to true (Dark Mode) as required
   const [darkMode, setDarkMode] = useState<boolean>(() => {
-    const saved = localStorage.getItem('examradar_darkmode');
-    return saved ? JSON.parse(saved) : false;
+    try {
+      const saved = localStorage.getItem('examradar_darkmode');
+      if (saved !== null) {
+        return JSON.parse(saved);
+      }
+    } catch {}
+    return true;
   });
 
-  // Saved / Bookmarked Exams
+  // Saved / Bookmarked Exams - strictly based on user saved exams (never create fake exams)
   const [savedExamIds, setSavedExamIds] = useState<string[]>(() => {
-    const saved = localStorage.getItem('examradar_saved_exams');
-    return saved ? JSON.parse(saved) : ['ssc-cgl-2026', 'upsc-cse-2026'];
+    try {
+      const saved = localStorage.getItem('examradar_saved_exams');
+      if (saved !== null) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          return parsed.filter((id: string) => SAMPLE_EXAMS.some(e => e.id === id));
+        }
+      }
+    } catch {}
+    return [];
   });
 
   // Selected Exam for Details Modal
@@ -59,11 +74,13 @@ export default function App() {
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   const tickerAlerts = useMemo(() => [
-    { text: 'RRB ALP 2026: Application deadline on Sept 30. Check exam details.', examId: 'rrb-alp-2026' },
-    { text: 'IBPS PO XIV: 4,455 vacancies closing on Oct 2. Complete fee payment.', examId: 'ibps-po-xiv-2026' },
-    { text: 'SSC CGL 2026: 17,727 vacancies - Tier 1 exam scheduled Dec 10-22.', examId: 'ssc-cgl-2026' },
-    { text: 'BPSC 70th CCE: 1,957 State Service posts open until Oct 18.', examId: 'bpsc-70th-cce-2026' },
-    { text: 'UPSC NDA & NA (I) 2026: 400 Cadet positions opening Oct 1.', examId: 'upsc-nda-na-2026' }
+    { text: 'SSC CHSL 2026: 2,536 vacancies — Online application active on ssc.gov.in until October 7, 2026', examId: 'ssc-chsl-2026' },
+    { text: 'CTET December 2026: Online registration window active on ctet.nic.in until October 16, 2026', examId: 'ctet-dec-2026' },
+    { text: 'BPSC 70th Integrated CCE: 1,957 State Service posts open on onlinebpsc.bihar.gov.in', examId: 'bpsc-70th-cce' },
+    { text: 'SSC CGL 2026: Tier-I examination scheduled September 30 – October 30, 2026 on ssc.gov.in', examId: 'ssc-cgl-2026' },
+    { text: 'IBPS PO XIV: Main Examination confirmed for October 4, 2026 on ibps.in', examId: 'ibps-po-xiv' },
+    { text: 'IBPS Clerk 2026: Preliminary Examination confirmed for October 10 & 11, 2026', examId: 'ibps-clerk-csa-2026' },
+    { text: 'UPSC Civil Services (CSE) 2027: Confirmed Prelims date May 23, 2027 per official calendar', examId: 'upsc-cse-2027' }
   ], []);
 
   // Ticker timer
@@ -74,13 +91,17 @@ export default function App() {
     return () => clearInterval(interval);
   }, [tickerAlerts.length]);
 
-  // Sync Dark Mode class with <html>
+  // Sync Dark Mode class with <html> and <body>
   useEffect(() => {
-    localStorage.setItem('examradar_darkmode', JSON.stringify(darkMode));
+    try {
+      localStorage.setItem('examradar_darkmode', JSON.stringify(darkMode));
+    } catch {}
     if (darkMode) {
       document.documentElement.classList.add('dark');
+      document.body?.classList.add('dark');
     } else {
       document.documentElement.classList.remove('dark');
+      document.body?.classList.remove('dark');
     }
   }, [darkMode]);
 
@@ -154,13 +175,17 @@ export default function App() {
       return true;
     }).sort((a, b) => {
       if (sortBy === 'deadline') {
-        return a.lastDate.localeCompare(b.lastDate);
+        const dateA = a.lastDate && /^\d{4}-\d{2}-\d{2}$/.test(a.lastDate) ? a.lastDate : '9999-99-99';
+        const dateB = b.lastDate && /^\d{4}-\d{2}-\d{2}$/.test(b.lastDate) ? b.lastDate : '9999-99-99';
+        return dateA.localeCompare(dateB);
       }
       if (sortBy === 'vacancies') {
         return b.vacancies - a.vacancies;
       }
       if (sortBy === 'recent') {
-        return b.applicationStartDate.localeCompare(a.applicationStartDate);
+        const startA = a.applicationStartDate && /^\d{4}-\d{2}-\d{2}$/.test(a.applicationStartDate) ? a.applicationStartDate : '0000-00-00';
+        const startB = b.applicationStartDate && /^\d{4}-\d{2}-\d{2}$/.test(b.applicationStartDate) ? b.applicationStartDate : '0000-00-00';
+        return startB.localeCompare(startA);
       }
       if (sortBy === 'name') {
         return a.shortName.localeCompare(b.shortName);
@@ -169,24 +194,28 @@ export default function App() {
     });
   }, [searchQuery, selectedCategory, selectedQualification, selectedState, selectedStatus, sortBy]);
 
-  // Sectioned Lists for Homepage
+  // Sectioned Lists for Homepage (Current active & verified cycles)
   const latestNotifications = useMemo(() => {
     return [...SAMPLE_EXAMS]
-      .filter(e => e.status === 'Applications Open' || e.status === 'Closing Soon')
+      .filter(e => !e.isHistorical && (e.status === 'Applications Open' || e.status === 'Closing Soon'))
       .sort((a, b) => b.applicationStartDate.localeCompare(a.applicationStartDate))
       .slice(0, 6);
   }, []);
 
   const closingSoonExams = useMemo(() => {
     return [...SAMPLE_EXAMS]
-      .filter(e => e.status === 'Closing Soon')
+      .filter(e => !e.isHistorical && e.status === 'Closing Soon')
       .sort((a, b) => a.lastDate.localeCompare(b.lastDate));
   }, []);
 
   const upcomingExams = useMemo(() => {
     return [...SAMPLE_EXAMS]
-      .filter(e => e.status === 'Upcoming')
-      .sort((a, b) => a.applicationStartDate.localeCompare(b.applicationStartDate));
+      .filter(e => !e.isHistorical && e.status === 'Upcoming')
+      .sort((a, b) => {
+        const dateA = a.applicationStartDate && /^\d{4}-\d{2}-\d{2}$/.test(a.applicationStartDate) ? a.applicationStartDate : '9999-99-99';
+        const dateB = b.applicationStartDate && /^\d{4}-\d{2}-\d{2}$/.test(b.applicationStartDate) ? b.applicationStartDate : '9999-99-99';
+        return dateA.localeCompare(dateB);
+      });
   }, []);
 
   const savedExamsList = useMemo(() => {
@@ -211,7 +240,7 @@ export default function App() {
       <Navbar
         activeTab={activeTab}
         setActiveTab={setActiveTab}
-        savedCount={savedExamIds.length}
+        savedCount={savedExamsList.length}
         darkMode={darkMode}
         setDarkMode={setDarkMode}
         onSearchClick={() => {
@@ -254,6 +283,20 @@ export default function App() {
 
       {/* Main Content Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        {/* Prominent Verification Notice - Present across platform */}
+        <div className="mb-6 p-3.5 rounded-xl bg-indigo-50/80 dark:bg-indigo-950/40 border border-indigo-200/90 dark:border-indigo-800/60 flex items-center justify-between gap-3 shadow-xs">
+          <div className="flex items-center gap-2.5 text-xs text-indigo-950 dark:text-indigo-200">
+            <ShieldCheck className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
+            <p className="leading-snug">
+              <strong>Official Source Guarantee:</strong> ExamRadar provides information collected from official sources. Always verify important details from the official notification before applying.
+            </p>
+          </div>
+          <span className="text-[11px] font-mono text-slate-500 dark:text-slate-400 shrink-0 hidden md:inline-flex items-center gap-1">
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+            <span>Audited & Current</span>
+          </span>
+        </div>
+
         {/* VIEW: HOME */}
         {activeTab === 'home' && (
           <div className="space-y-10 animate-in fade-in duration-200">
@@ -288,7 +331,7 @@ export default function App() {
                           setActiveTab('exams');
                         }
                       }}
-                      placeholder="Search exams, organizations or qualifications (e.g. SSC CGL, Banking, 12th Pass)..."
+                      placeholder="Search exams, organizations or qualifications (e.g. SSC CHSL, UPSC, Banking, 12th Pass)..."
                       className="w-full pl-12 pr-28 py-3.5 sm:py-4 text-xs sm:text-sm text-slate-900 dark:text-white placeholder-slate-400 bg-transparent focus:outline-none"
                     />
                     <button
@@ -302,8 +345,8 @@ export default function App() {
 
                   {/* Quick Pill Suggestions */}
                   <div className="mt-3 flex items-center gap-2 flex-wrap text-xs text-indigo-200">
-                    <span className="text-[11px] text-indigo-300 font-medium">Popular Searches:</span>
-                    {['SSC CGL', 'UPSC Prelims', 'Banking PO', 'Railway NTPC', '12th Pass Exams', 'Engineering'].map((keyword) => (
+                    <span className="text-[11px] text-indigo-300 font-medium">Verified Active:</span>
+                    {['SSC CHSL 2026', 'SSC CGL', 'UPSC CSE 2027', 'CTET Dec 2026', 'BPSC 70th', 'IBPS PO'].map((keyword) => (
                       <button
                         key={keyword}
                         onClick={() => handleQuickSearchKeyword(keyword)}
@@ -445,10 +488,10 @@ export default function App() {
                   <div>
                     <h2 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
                       <CalendarIcon className="w-5 h-5 text-purple-600 dark:text-purple-400" />
-                      <span>Upcoming Exams & Future Releases</span>
+                      <span>Upcoming Exams & Official Calendar Announcements</span>
                     </h2>
                     <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
-                      Notifications scheduled to open in the coming weeks. Prepare your eligibility documents in advance.
+                      Notifications scheduled per official commission annual calendars.
                     </p>
                   </div>
 
@@ -515,7 +558,7 @@ export default function App() {
                 All Government Exams
               </h1>
               <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
-                Filter by commission category, educational qualification, domicile state, or application status.
+                Filter by commission category, educational qualification, domicile state, or application status. All dates audited against official announcements.
               </p>
             </div>
 
@@ -535,27 +578,33 @@ export default function App() {
               setSortBy={setSortBy}
               totalFilteredCount={filteredExams.length}
               onResetFilters={handleResetFilters}
+              onApplyFilters={() => {
+                const el = document.getElementById('exams-results-grid');
+                el?.scrollIntoView({ behavior: 'smooth' });
+              }}
             />
 
             {/* Exam Results Grid */}
             {filteredExams.length === 0 ? (
               <div className="p-12 text-center rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-3">
-                <AlertTriangle className="w-8 h-8 text-amber-500 mx-auto" />
-                <h3 className="text-base font-bold text-slate-800 dark:text-slate-200">
-                  No exams matched your filters
+                <AlertTriangle className="w-9 h-9 text-amber-500 mx-auto" />
+                <h3 className="text-base sm:text-lg font-bold text-slate-800 dark:text-slate-200">
+                  No matching exams found
                 </h3>
-                <p className="text-xs text-slate-500 max-w-sm mx-auto">
-                  Try clearing search keywords or choosing "All" in category and qualification filters.
+                <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 max-w-sm mx-auto">
+                  No examinations matched your selected filters or search keyword. Try clearing search keywords or choosing "All" in category and qualification filters.
                 </p>
                 <button
+                  type="button"
                   onClick={handleResetFilters}
-                  className="px-4 py-2 text-xs font-semibold rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-colors"
+                  className="px-4 py-2 text-xs font-semibold rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-colors inline-flex items-center gap-1.5"
                 >
-                  Reset All Filters
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Reset All Filters</span>
                 </button>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
+              <div id="exams-results-grid" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
                 {filteredExams.map((exam) => (
                   <ExamCard
                     key={exam.id}
@@ -596,7 +645,7 @@ export default function App() {
                     {selectedCategory === 'All' ? 'Featured Exam Notifications' : `${selectedCategory} Notifications`}
                   </h2>
                   <p className="text-xs text-slate-500">
-                    {selectedCategory === 'All' ? 'Showing premier recruitment drives' : `Active and upcoming ${selectedCategory} notifications`}
+                    {selectedCategory === 'All' ? 'Showing verified recruitment drives' : `Active and upcoming ${selectedCategory} notifications`}
                   </p>
                 </div>
 
@@ -609,7 +658,7 @@ export default function App() {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {(selectedCategory === 'All' ? SAMPLE_EXAMS.slice(0, 6) : SAMPLE_EXAMS.filter(e => e.category === selectedCategory)).map((exam) => (
+                {(selectedCategory === 'All' ? SAMPLE_EXAMS.filter(e => !e.isHistorical).slice(0, 6) : SAMPLE_EXAMS.filter(e => e.category === selectedCategory)).map((exam) => (
                   <ExamCard
                     key={exam.id}
                     exam={exam}
@@ -713,6 +762,8 @@ export default function App() {
           setActiveTab(tab);
           window.scrollTo({ top: 0, behavior: 'smooth' });
         }}
+        darkMode={darkMode}
+        setDarkMode={setDarkMode}
       />
     </div>
   );

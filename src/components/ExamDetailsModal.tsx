@@ -18,14 +18,17 @@ import {
   CalendarPlus,
   Printer,
   ShieldCheck,
-  Check
+  Check,
+  History,
+  AlertCircle
 } from 'lucide-react';
 import { ExamNotification } from '../types/exam';
 import { 
   getStatusBadgeStyle, 
   getCategoryBadgeStyle, 
   formatDeadlineText, 
-  generateCalendarEventICS 
+  generateCalendarEventICS,
+  getDateConfidenceBadgeStyle
 } from '../utils/helpers';
 
 interface ExamDetailsModalProps {
@@ -56,10 +59,11 @@ export const ExamDetailsModal: React.FC<ExamDetailsModalProps> = ({
   const statusStyle = getStatusBadgeStyle(exam.status);
   const categoryStyle = getCategoryBadgeStyle(exam.category);
   const deadline = formatDeadlineText(exam.lastDate, exam.status, exam.applicationStartDate);
+  const examDateConfidence = getDateConfidenceBadgeStyle(exam.examDateType);
   const calendarIcsUrl = generateCalendarEventICS(exam);
 
   const handleShare = async () => {
-    const shareText = `${exam.title} (${exam.organization}) - Application Deadline: ${exam.lastDate}. Explore on ExamRadar.`;
+    const shareText = `${exam.title} (${exam.organization}) - Last Date: ${exam.lastDate}. Always verify details on official notification via ExamRadar.`;
     if (navigator.share) {
       try {
         await navigator.share({
@@ -118,18 +122,30 @@ export const ExamDetailsModal: React.FC<ExamDetailsModalProps> = ({
                 <span>{exam.state}</span>
               </span>
               <span className="inline-flex items-center gap-1 text-[11px] text-emerald-700 dark:text-emerald-300 font-medium bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded border border-emerald-200 dark:border-emerald-800">
-                <ShieldCheck className="w-3 h-3 text-emerald-500" />
-                <span>Verified Notification</span>
+                <CheckCircle2 className="w-3 h-3 text-emerald-500" />
+                <span>Last Verified: {exam.lastVerified}</span>
               </span>
+              {exam.isHistorical && (
+                <span className="inline-flex items-center gap-1 text-[11px] text-slate-600 dark:text-slate-300 font-medium bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded border border-slate-200 dark:border-slate-700">
+                  <History className="w-3 h-3 text-slate-500" />
+                  <span>Historical Record</span>
+                </span>
+              )}
             </div>
             
             <h2 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white leading-tight">
               {exam.title}
             </h2>
-            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 flex items-center gap-1.5">
-              <Briefcase className="w-4 h-4 text-slate-400 shrink-0" />
-              <span>{exam.organization}</span>
-            </p>
+            <div className="flex items-center gap-3 text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1 flex-wrap">
+              <span className="flex items-center gap-1">
+                <Briefcase className="w-4 h-4 text-slate-400 shrink-0" />
+                <span>{exam.organization}</span>
+              </span>
+              <span className="text-slate-300 dark:text-slate-700">•</span>
+              <span className="font-medium text-slate-600 dark:text-slate-300">
+                Cycle: {exam.examCycle}
+              </span>
+            </div>
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
@@ -172,57 +188,68 @@ export const ExamDetailsModal: React.FC<ExamDetailsModalProps> = ({
 
         {/* Content Body */}
         <div className="p-4 sm:p-6 space-y-6">
-          {/* Official Verification Disclaimer Banner (Mandatory requirement) */}
-          <div className="p-3.5 sm:p-4 rounded-xl bg-amber-50/90 dark:bg-amber-950/40 border border-amber-200/90 dark:border-amber-900/60 flex items-start gap-3">
+          {/* Prominent Required Official Source Disclaimer Banner */}
+          <div className="p-4 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/60 flex items-start gap-3">
             <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
             <div className="text-xs sm:text-sm text-amber-900 dark:text-amber-200 space-y-1">
-              <p className="font-semibold">
-                Always verify eligibility and dates from the official notification.
+              <p className="font-bold text-sm">
+                ExamRadar provides information collected from official sources. Always verify important details from the official notification before applying.
               </p>
               <p className="text-amber-800/90 dark:text-amber-300/80 leading-relaxed text-xs">
-                ExamRadar is an independent informational discovery platform and is not an official government website. Candidate registration, official admit cards, exam schedules, and eligibility rules are governed exclusively by {exam.organization}. Verify all rules on the official authority website before applying.
+                ExamRadar is an independent informational discovery platform and is not an official government website. Vacancies, qualifications, age limits, and schedules are governed solely by {exam.organization}. Always verify all critical requirements and deadlines on the official portal before submitting any application or payment.
               </p>
             </div>
           </div>
 
-          {/* Quick Stats Grid */}
+          {/* Quick Stats Grid with Accuracy Badges */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
-              <span className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-                Total Vacancies
-              </span>
-              <div className="flex items-center gap-1.5 mt-1 text-slate-900 dark:text-white font-bold text-lg font-mono tabular-nums">
+              <div className="flex items-center justify-between text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">
+                <span>Total Vacancies</span>
+                {exam.vacanciesStatus && (
+                  <span className={`text-[9px] px-1 rounded font-medium ${
+                    exam.vacanciesStatus === 'Confirmed' 
+                      ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300' 
+                      : exam.vacanciesStatus === 'Tentative'
+                      ? 'bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300'
+                      : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
+                  }`}>
+                    {exam.vacanciesStatus}
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-1.5 text-slate-900 dark:text-white font-bold text-lg font-mono tabular-nums">
                 <Users className="w-4 h-4 text-indigo-500 shrink-0" />
                 <span>{exam.vacancies > 0 ? exam.vacancies.toLocaleString('en-IN') : 'To be notified'}</span>
               </div>
             </div>
 
             <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
-              <span className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+              <span className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">
                 Min Qualification
               </span>
-              <div className="flex items-center gap-1.5 mt-1 text-slate-900 dark:text-white font-bold text-base">
+              <div className="flex items-center gap-1.5 text-slate-900 dark:text-white font-bold text-base">
                 <GraduationCap className="w-4 h-4 text-indigo-500 shrink-0" />
                 <span className="truncate">{exam.qualification}</span>
               </div>
             </div>
 
             <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
-              <span className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+              <span className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">
                 Age Bracket (UR)
               </span>
-              <div className="flex items-center gap-1.5 mt-1 text-slate-900 dark:text-white font-bold text-base font-mono tabular-nums">
+              <div className="flex items-center gap-1.5 text-slate-900 dark:text-white font-bold text-base font-mono tabular-nums">
                 <span>{exam.eligibility.minAge} – {exam.eligibility.maxAge} yrs</span>
               </div>
             </div>
 
             <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
-              <span className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-                Apply Deadline
+              <span className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">
+                Application Last Date
               </span>
-              <div className="flex items-center gap-1.5 mt-1 text-slate-900 dark:text-white font-bold text-base font-mono tabular-nums">
+              <div className="flex items-center gap-1.5 text-slate-900 dark:text-white font-bold text-sm font-mono tabular-nums">
                 <Clock className="w-4 h-4 text-amber-500 shrink-0" />
-                <span>{deadline.text}</span>
+                <span className="truncate">{deadline.text}</span>
               </div>
             </div>
           </div>
@@ -247,20 +274,20 @@ export const ExamDetailsModal: React.FC<ExamDetailsModalProps> = ({
           <div className="space-y-3">
             <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
               <Info className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-              <span>Eligibility & Qualification Criteria</span>
+              <span>Eligibility & Educational Criteria</span>
             </h3>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs sm:text-sm">
               <div className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 space-y-2">
                 <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
-                  Educational Qualifications
+                  Prescribed Qualifications
                 </span>
                 <p className="text-slate-800 dark:text-slate-200 leading-relaxed font-medium">
                   {exam.qualificationText}
                 </p>
                 {exam.degreeBranches && exam.degreeBranches.length > 0 && (
                   <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
-                    <span className="text-xs text-slate-400 block mb-1">Eligible Streams / Branches:</span>
+                    <span className="text-xs text-slate-400 block mb-1">Eligible Disciplines / Streams:</span>
                     <div className="flex flex-wrap gap-1.5">
                       {exam.degreeBranches.map((branch, idx) => (
                         <span key={idx} className="text-[11px] px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded font-medium">
@@ -274,13 +301,13 @@ export const ExamDetailsModal: React.FC<ExamDetailsModalProps> = ({
 
               <div className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 space-y-2">
                 <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
-                  Age Limits & Reservation Relaxations
+                  Age Limits & Category Relaxations
                 </span>
                 <p className="text-slate-800 dark:text-slate-200 font-medium">
-                  General / Unreserved: <span className="font-mono tabular-nums">{exam.eligibility.minAge} – {exam.eligibility.maxAge} years</span>
+                  Unreserved / General: <span className="font-mono tabular-nums">{exam.eligibility.minAge} – {exam.eligibility.maxAge} years</span>
                 </p>
                 <div className="p-2.5 rounded-lg bg-indigo-50/50 dark:bg-indigo-950/30 border border-indigo-100 dark:border-indigo-900/40 text-xs text-slate-700 dark:text-slate-300">
-                  <strong className="text-indigo-900 dark:text-indigo-300">Category Relaxation: </strong>
+                  <strong className="text-indigo-900 dark:text-indigo-300">Relaxations: </strong>
                   {exam.eligibility.ageRelaxation}
                 </div>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400">
@@ -290,55 +317,72 @@ export const ExamDetailsModal: React.FC<ExamDetailsModalProps> = ({
             </div>
           </div>
 
-          {/* Important Dates Timeline */}
+          {/* Important Dates Timeline - Clearly distinguishing Confirmed vs Tentative vs Not Announced */}
           <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                <CalendarIcon className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-                <span>Important Dates & Timeline</span>
-              </h3>
-              <a
-                href={calendarIcsUrl}
-                download={`${exam.shortName.replace(/\s+/g, '_')}_deadline.ics`}
-                className="inline-flex items-center gap-1 text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline"
-              >
-                <CalendarPlus className="w-3.5 h-3.5" />
-                <span>Add Deadline to Calendar (.ics)</span>
-              </a>
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <CalendarIcon className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                  <span>Important Dates & Timeline</span>
+                </h3>
+                <span className="text-xs text-slate-400">
+                  (Dates verified from official notification)
+                </span>
+              </div>
+              {exam.lastDate && exam.lastDate !== 'Not announced yet' && (
+                <a
+                  href={calendarIcsUrl}
+                  download={`${exam.shortName.replace(/\s+/g, '_')}_deadline.ics`}
+                  className="inline-flex items-center gap-1 text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline"
+                >
+                  <CalendarPlus className="w-3.5 h-3.5" />
+                  <span>Add Deadline (.ics)</span>
+                </a>
+              )}
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
-              {exam.importantDates.map((item, index) => (
-                <div
-                  key={index}
-                  className={`p-3 rounded-xl border text-xs ${
-                    item.isDeadline
-                      ? 'bg-amber-50/80 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800/60'
-                      : item.isExamDate
-                      ? 'bg-blue-50/80 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800/60'
-                      : 'bg-slate-50 dark:bg-slate-800/50 border-slate-200/80 dark:border-slate-800'
-                  }`}
-                >
-                  <span className="block text-slate-500 dark:text-slate-400 font-medium mb-1">
-                    {item.label}
-                  </span>
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-slate-900 dark:text-white font-mono tabular-nums text-xs sm:text-sm">
-                      {item.date}
-                    </span>
-                    {item.isDeadline && (
-                      <span className="text-[10px] font-bold text-amber-700 dark:text-amber-300 uppercase tracking-wider">
-                        Last Date
+              {exam.importantDates.map((item, index) => {
+                const confStyle = item.dateType ? getDateConfidenceBadgeStyle(item.dateType) : null;
+                return (
+                  <div
+                    key={index}
+                    className={`p-3 rounded-xl border text-xs ${
+                      item.isDeadline
+                        ? 'bg-amber-50/80 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800/60'
+                        : item.isExamDate
+                        ? 'bg-blue-50/80 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800/60'
+                        : 'bg-slate-50 dark:bg-slate-800/50 border-slate-200/80 dark:border-slate-800'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-slate-500 dark:text-slate-400 font-medium">
+                        {item.label}
                       </span>
-                    )}
-                    {item.isExamDate && (
-                      <span className="text-[10px] font-bold text-blue-700 dark:text-blue-300 uppercase tracking-wider">
-                        Exam Date
+                      {confStyle && (
+                        <span className={`text-[9px] px-1 rounded border font-medium ${confStyle.bg}`}>
+                          {confStyle.label}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center justify-between mt-1">
+                      <span className="font-bold text-slate-900 dark:text-white font-mono tabular-nums text-xs sm:text-sm">
+                        {item.date}
                       </span>
-                    )}
+                      {item.isDeadline && (
+                        <span className="text-[10px] font-bold text-amber-700 dark:text-amber-300 uppercase tracking-wider shrink-0 ml-1">
+                          Deadline
+                        </span>
+                      )}
+                      {item.isExamDate && (
+                        <span className="text-[10px] font-bold text-blue-700 dark:text-blue-300 uppercase tracking-wider shrink-0 ml-1">
+                          Exam Date
+                        </span>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 
@@ -370,7 +414,7 @@ export const ExamDetailsModal: React.FC<ExamDetailsModalProps> = ({
             <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 space-y-2.5">
               <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
                 <CheckCircle2 className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-                <span>Selection Process</span>
+                <span>Selection Stages</span>
               </h3>
               <ol className="space-y-2 text-xs text-slate-700 dark:text-slate-300">
                 {exam.selectionProcess.map((step, idx) => (
@@ -386,12 +430,12 @@ export const ExamDetailsModal: React.FC<ExamDetailsModalProps> = ({
           </div>
         </div>
 
-        {/* Modal Action Footer */}
+        {/* Modal Action Footer with Verified Official Portal Link */}
         <div className="sticky bottom-0 z-10 bg-slate-50/95 dark:bg-slate-900/95 backdrop-blur border-t border-slate-200 dark:border-slate-800 p-4 sm:p-5 flex flex-col sm:flex-row items-center justify-between gap-3">
           <div className="text-xs text-slate-500 dark:text-slate-400 text-center sm:text-left flex items-center gap-1.5">
-            <ShieldCheck className="w-4 h-4 text-emerald-500" />
-            <span>Official Portal: </span>
-            <span className="font-mono font-semibold text-slate-700 dark:text-slate-300">{exam.officialNotificationUrl.replace('https://', '')}</span>
+            <ShieldCheck className="w-4 h-4 text-emerald-500 shrink-0" />
+            <span>Official Recruiting Authority: </span>
+            <span className="font-mono font-semibold text-slate-700 dark:text-slate-300">{exam.organization}</span>
           </div>
 
           <div className="flex items-center gap-2.5 w-full sm:w-auto">

@@ -1,14 +1,16 @@
 import React from 'react';
-import { Radar, AlertCircle, ShieldCheck, Heart } from 'lucide-react';
+import { Radar, AlertCircle, ShieldCheck, Heart, Sun, Moon } from 'lucide-react';
 import { ExamCategory } from '../types/exam';
 import { CATEGORIES_LIST } from '../data/examsData';
 
 interface FooterProps {
   onSelectCategory: (category: ExamCategory) => void;
   onNavigate: (tab: 'home' | 'exams' | 'calendar' | 'find-exams') => void;
+  darkMode?: boolean;
+  setDarkMode?: (val: boolean | ((prev: boolean) => boolean)) => void;
 }
 
-export const Footer: React.FC<FooterProps> = ({ onSelectCategory, onNavigate }) => {
+export const Footer: React.FC<FooterProps> = ({ onSelectCategory, onNavigate, darkMode, setDarkMode }) => {
   return (
     <footer className="mt-16 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
@@ -99,7 +101,7 @@ export const Footer: React.FC<FooterProps> = ({ onSelectCategory, onNavigate }) 
               <span>Aspirant Advisory</span>
             </div>
             <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-normal">
-              Always verify eligibility and dates from the official notification. Candidates must complete all registration and fee submissions exclusively on authorized government portals (.gov.in / .nic.in).
+              <strong>ExamRadar provides information collected from official sources. Always verify important details from the official notification before applying.</strong> Candidates must complete all registration and fee submissions exclusively on authorized government portals (.gov.in / .nic.in).
             </p>
           </div>
         </div>
@@ -119,8 +121,21 @@ export const Footer: React.FC<FooterProps> = ({ onSelectCategory, onNavigate }) 
           <div>
             © {new Date().getFullYear()} ExamRadar · All Government Exams. One Place.
           </div>
-          <div className="flex items-center gap-1 text-[11px]">
-            <span>Crafted for Indian government exam aspirants</span>
+
+          <div className="flex items-center gap-4">
+            {setDarkMode && (
+              <button
+                type="button"
+                onClick={() => setDarkMode((prev) => !prev)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors text-xs font-medium cursor-pointer"
+              >
+                {darkMode ? <Sun className="w-3.5 h-3.5 text-amber-400" /> : <Moon className="w-3.5 h-3.5 text-indigo-500" />}
+                <span>{darkMode ? 'Light Mode' : 'Dark Mode'}</span>
+              </button>
+            )}
+            <div className="flex items-center gap-1 text-[11px]">
+              <span>Crafted for Indian government exam aspirants</span>
+            </div>
           </div>
         </div>
       </div>

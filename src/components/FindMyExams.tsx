@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { 
   Compass, 
   AlertTriangle, 
@@ -8,7 +8,9 @@ import {
   ArrowRight,
   Info,
   SlidersHorizontal,
-  RotateCcw
+  RotateCcw,
+  Search,
+  Check
 } from 'lucide-react';
 import { ExamNotification, StudentProfile, QualificationLevel } from '../types/exam';
 import { ALL_INDIAN_STATES } from '../data/examsData';
@@ -38,6 +40,9 @@ export const FindMyExams: React.FC<FindMyExamsProps> = ({
     isPwD: false
   });
 
+  const [appliedFeedback, setAppliedFeedback] = useState<string | null>(null);
+  const resultsRef = useRef<HTMLDivElement>(null);
+
   const degreeSuggestions: Record<QualificationLevel, string[]> = {
     '10th': ['Matriculation / 10th Standard', '10th with ITI'],
     '12th': ['12th Science (PCM)', '12th Science (PCB)', '12th Commerce', '12th Arts / Humanities'],
@@ -59,11 +64,14 @@ export const FindMyExams: React.FC<FindMyExamsProps> = ({
   };
 
   const applyPreset = (preset: Partial<StudentProfile>) => {
-    setProfile(prev => ({
-      ...prev,
-      ...preset,
-      degreeBranch: preset.qualification ? degreeSuggestions[preset.qualification][0] : prev.degreeBranch
-    }));
+    setProfile(prev => {
+      const updated: StudentProfile = {
+        ...prev,
+        ...preset,
+        degreeBranch: preset.qualification ? degreeSuggestions[preset.qualification][0] : prev.degreeBranch
+      };
+      return updated;
+    });
   };
 
   const matchResults = useMemo(() => {
@@ -79,6 +87,31 @@ export const FindMyExams: React.FC<FindMyExamsProps> = ({
   const eligibleMatches = matchResults.filter(r => r.isMatch);
   const potentialMatches = matchResults.filter(r => !r.isMatch && r.matchScore >= 40);
 
+  const handleFormSubmit = (e?: React.FormEvent) => {
+    if (e) {
+      e.preventDefault();
+    }
+    setAppliedFeedback(
+      `Filters applied: Age ${profile.age}, ${profile.category}${profile.isPwD ? ' (+ PwD)' : ''}, ${profile.qualification} (${profile.degreeBranch}), ${profile.state}, Gender: ${profile.gender}`
+    );
+    setTimeout(() => {
+      resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 60);
+  };
+
+  const handleResetProfile = () => {
+    setProfile({
+      age: 22,
+      category: 'General',
+      qualification: 'Graduate',
+      degreeBranch: 'Any Graduate',
+      state: 'All India',
+      gender: 'All',
+      isPwD: false
+    });
+    setAppliedFeedback(null);
+  };
+
   return (
     <div className="space-y-8 animate-in fade-in duration-200">
       {/* Tool Header */}
@@ -92,42 +125,49 @@ export const FindMyExams: React.FC<FindMyExamsProps> = ({
             Find My Eligible Government Exams
           </h1>
           <p className="text-sm text-indigo-100/90 mt-2 leading-relaxed">
-            Enter your age, reservation category, qualification, and domicile. ExamRadar calculates your eligibility across minimum age brackets, category age relaxations, and educational qualifications.
+            Enter your age, reservation category, qualification, state, gender, and stream. Press Enter or click "Find My Exams" to calculate your eligibility across official age relaxations and criteria.
           </p>
 
           {/* Quick Presets */}
           <div className="mt-4 pt-3 border-t border-indigo-700/50 flex items-center gap-2 flex-wrap text-xs">
             <span className="text-indigo-300 font-medium">Quick Presets:</span>
             <button
-              onClick={() => applyPreset({ age: 22, category: 'General', qualification: 'Graduate', state: 'All India', isPwD: false })}
+              type="button"
+              onClick={() => applyPreset({ age: 22, category: 'General', qualification: 'Graduate', state: 'All India', isPwD: false, gender: 'All' })}
               className="px-2.5 py-1 rounded bg-indigo-800/80 hover:bg-indigo-700 text-white font-medium border border-indigo-600/50 transition-colors"
             >
               Graduate 22 (General)
             </button>
             <button
-              onClick={() => applyPreset({ age: 24, category: 'OBC', qualification: 'Engineering', state: 'All India', isPwD: false })}
+              type="button"
+              onClick={() => applyPreset({ age: 24, category: 'OBC', qualification: 'Engineering', state: 'All India', isPwD: false, gender: 'All' })}
               className="px-2.5 py-1 rounded bg-indigo-800/80 hover:bg-indigo-700 text-white font-medium border border-indigo-600/50 transition-colors"
             >
               B.Tech 24 (OBC)
             </button>
             <button
-              onClick={() => applyPreset({ age: 19, category: 'General', qualification: '12th', state: 'All India', isPwD: false })}
+              type="button"
+              onClick={() => applyPreset({ age: 19, category: 'General', qualification: '12th', state: 'All India', isPwD: false, gender: 'All' })}
               className="px-2.5 py-1 rounded bg-indigo-800/80 hover:bg-indigo-700 text-white font-medium border border-indigo-600/50 transition-colors"
             >
               12th Pass 19 (General)
             </button>
             <button
-              onClick={() => applyPreset({ age: 26, category: 'SC', qualification: 'B.Ed', state: 'All India', isPwD: false })}
+              type="button"
+              onClick={() => applyPreset({ age: 26, category: 'SC', qualification: 'B.Ed', state: 'All India', isPwD: false, gender: 'Female' })}
               className="px-2.5 py-1 rounded bg-indigo-800/80 hover:bg-indigo-700 text-white font-medium border border-indigo-600/50 transition-colors"
             >
-              Teaching B.Ed 26 (SC)
+              Teaching B.Ed 26 (SC Female)
             </button>
           </div>
         </div>
       </div>
 
       {/* Profile Form */}
-      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 sm:p-7 shadow-sm">
+      <form 
+        onSubmit={handleFormSubmit}
+        className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 sm:p-7 shadow-sm"
+      >
         <div className="flex items-center justify-between mb-5 pb-3 border-b border-slate-100 dark:border-slate-800">
           <div className="flex items-center gap-2">
             <GraduationCap className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
@@ -137,16 +177,9 @@ export const FindMyExams: React.FC<FindMyExamsProps> = ({
           </div>
 
           <button
-            onClick={() => setProfile({
-              age: 22,
-              category: 'General',
-              qualification: 'Graduate',
-              degreeBranch: 'Any Graduate',
-              state: 'All India',
-              gender: 'All',
-              isPwD: false
-            })}
-            className="text-xs text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 flex items-center gap-1"
+            type="button"
+            onClick={handleResetProfile}
+            className="text-xs text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 flex items-center gap-1 focus:outline-none focus-visible:ring-1 focus-visible:ring-indigo-500 rounded p-1"
           >
             <RotateCcw className="w-3 h-3" />
             <span>Reset</span>
@@ -156,30 +189,36 @@ export const FindMyExams: React.FC<FindMyExamsProps> = ({
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
           {/* Age Input */}
           <div>
-            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+            <label htmlFor="student-age-input" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
               Current Age (Years)
             </label>
             <div className="flex items-center gap-2">
               <input
+                id="student-age-input"
                 type="number"
                 min="16"
                 max="65"
                 value={profile.age}
                 onChange={(e) => setProfile(prev => ({ ...prev, age: Math.max(15, parseInt(e.target.value) || 18) }))}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    handleFormSubmit(e);
+                  }
+                }}
                 className="w-full p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 text-slate-900 dark:text-white font-mono tabular-nums text-base font-bold text-center focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
               <div className="flex flex-col gap-1">
                 <button
                   type="button"
                   onClick={() => setProfile(prev => ({ ...prev, age: prev.age + 1 }))}
-                  className="px-2.5 py-1 text-xs font-bold rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200"
+                  className="px-2.5 py-1 text-xs font-bold rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition-colors"
                 >
                   +
                 </button>
                 <button
                   type="button"
                   onClick={() => setProfile(prev => ({ ...prev, age: Math.max(16, prev.age - 1) }))}
-                  className="px-2.5 py-1 text-xs font-bold rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200"
+                  className="px-2.5 py-1 text-xs font-bold rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition-colors"
                 >
                   -
                 </button>
@@ -189,12 +228,18 @@ export const FindMyExams: React.FC<FindMyExamsProps> = ({
 
           {/* Category / Reservation */}
           <div>
-            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+            <label htmlFor="student-category-select" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
               Category
             </label>
             <select
+              id="student-category-select"
               value={profile.category}
               onChange={(e) => setProfile(prev => ({ ...prev, category: e.target.value as any }))}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  handleFormSubmit(e);
+                }
+              }}
               className="w-full p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 text-sm text-slate-800 dark:text-slate-200 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500"
             >
               <option value="General">General / UR (Standard age limit)</option>
@@ -207,12 +252,18 @@ export const FindMyExams: React.FC<FindMyExamsProps> = ({
 
           {/* Highest Qualification */}
           <div>
-            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+            <label htmlFor="student-qualification-select" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
               Highest Qualification
             </label>
             <select
+              id="student-qualification-select"
               value={profile.qualification}
               onChange={(e) => handleQualificationChange(e.target.value as QualificationLevel)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  handleFormSubmit(e);
+                }
+              }}
               className="w-full p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 text-sm text-slate-800 dark:text-slate-200 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500"
             >
               <option value="10th">10th Standard / Matric</option>
@@ -227,12 +278,18 @@ export const FindMyExams: React.FC<FindMyExamsProps> = ({
 
           {/* Domicile State */}
           <div>
-            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+            <label htmlFor="student-state-select" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
               State of Domicile
             </label>
             <select
+              id="student-state-select"
               value={profile.state}
               onChange={(e) => setProfile(prev => ({ ...prev, state: e.target.value }))}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  handleFormSubmit(e);
+                }
+              }}
               className="w-full p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 text-sm text-slate-800 dark:text-slate-200 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500"
             >
               <option value="All India">All India (Open to all states)</option>
@@ -245,7 +302,7 @@ export const FindMyExams: React.FC<FindMyExamsProps> = ({
 
         {/* Special Concessions (PwD & Gender) */}
         <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800 grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <label className="flex items-center gap-2.5 cursor-pointer p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-800/40 hover:bg-slate-100 dark:hover:bg-slate-800">
+          <label className="flex items-center gap-2.5 cursor-pointer p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-800/40 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
             <input
               type="checkbox"
               checked={profile.isPwD}
@@ -274,7 +331,7 @@ export const FindMyExams: React.FC<FindMyExamsProps> = ({
                   onClick={() => setProfile(prev => ({ ...prev, gender: g }))}
                   className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
                     profile.gender === g
-                      ? 'bg-indigo-600 text-white'
+                      ? 'bg-indigo-600 text-white font-semibold'
                       : 'bg-slate-200/80 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600'
                   }`}
                 >
@@ -317,28 +374,71 @@ export const FindMyExams: React.FC<FindMyExamsProps> = ({
             </div>
           </div>
 
-          <div className="text-xs text-indigo-600 dark:text-indigo-400 font-bold flex items-center gap-1 font-mono tabular-nums">
+          <div className="text-xs text-indigo-600 dark:text-indigo-400 font-bold flex items-center gap-1 font-mono tabular-nums shrink-0">
             <Sparkles className="w-3.5 h-3.5" />
             <span>{eligibleMatches.length} Matching Exams Found</span>
           </div>
         </div>
-      </div>
+
+        {/* Form Action Bar: Prominent Find My Exams Action Button */}
+        <div className="mt-5 pt-4 border-t border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+            <SlidersHorizontal className="w-4 h-4 text-indigo-500 shrink-0" />
+            <span>Press <kbd className="px-1.5 py-0.5 text-[10px] font-mono bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded font-semibold text-slate-700 dark:text-slate-300">Enter</kbd> or click button to calculate eligibility</span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleResetProfile}
+              className="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-semibold transition-colors flex items-center justify-center gap-1.5"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>Reset</span>
+            </button>
+
+            <button
+              type="submit"
+              className="flex-1 sm:flex-none px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white text-sm font-bold shadow-md shadow-indigo-600/20 transition-all flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+            >
+              <Compass className="w-4 h-4" />
+              <span>Find My Exams</span>
+              <span className="px-2 py-0.5 rounded-full bg-white/20 text-xs font-mono font-bold">
+                {eligibleMatches.length}
+              </span>
+            </button>
+          </div>
+        </div>
+      </form>
+
+      {/* Applied Feedback Notice if user triggered search */}
+      {appliedFeedback && (
+        <div className="p-3.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 flex items-center justify-between gap-3 text-xs text-indigo-900 dark:text-indigo-200 animate-in fade-in duration-150">
+          <div className="flex items-center gap-2">
+            <Check className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
+            <span className="font-medium">{appliedFeedback}</span>
+          </div>
+          <span className="font-bold font-mono shrink-0">
+            {eligibleMatches.length} Eligible Exams
+          </span>
+        </div>
+      )}
 
       {/* Mandatory Disclaimer Box */}
       <div className="p-4 rounded-xl bg-amber-50/90 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/60 flex items-start gap-3">
         <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
         <div className="text-xs sm:text-sm text-amber-900 dark:text-amber-200 space-y-1">
-          <p className="font-bold">
-            Important Notice Regarding Preliminary Eligibility Matching:
+          <p className="font-bold text-sm">
+            ExamRadar provides information collected from official sources. Always verify important details from the official notification before applying.
           </p>
-          <p className="leading-relaxed text-amber-800/90 dark:text-amber-300/80">
-            The results shown here are based on a preliminary programmatic match of basic parameters (Age, Reservation category, and General qualification rank). Specific notifications may have additional criteria such as typing speed certificates, specific subject combinations in 10+2, physical standards (height/chest), medical eyesight norms, and domicile criteria. <strong>Always check and verify the official notification PDF published by the examination authority before applying.</strong>
+          <p className="leading-relaxed text-amber-800/90 dark:text-amber-300/80 text-xs">
+            Preliminary Match Notice: The results shown here are based on a preliminary programmatic match of basic parameters (Age, Reservation category, and General qualification rank). Specific notifications may have additional criteria such as typing speed certificates, specific subject combinations in 10+2, physical standards (height/chest), medical eyesight norms, and domicile criteria. Results are solely for guidance; please check the official gazette before applying.
           </p>
         </div>
       </div>
 
       {/* Eligible Exams Results List */}
-      <div className="space-y-4">
+      <div ref={resultsRef} id="find-my-exams-results" className="space-y-4 pt-2">
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
@@ -355,11 +455,19 @@ export const FindMyExams: React.FC<FindMyExamsProps> = ({
           <div className="p-8 text-center rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-3">
             <Info className="w-8 h-8 text-slate-400 mx-auto" />
             <h3 className="text-base font-bold text-slate-800 dark:text-slate-200">
-              No direct matches for current parameters
+              No matching exams found
             </h3>
             <p className="text-xs text-slate-500 max-w-md mx-auto">
-              Try adjusting your age or selecting a different qualification level (such as Graduate or 12th Pass) to see more opportunities.
+              No exams directly match your current eligibility parameters. Try adjusting your age or choosing another qualification or stream to see matching opportunities.
             </p>
+            <button
+              type="button"
+              onClick={handleResetProfile}
+              className="px-4 py-2 text-xs font-semibold rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-colors inline-flex items-center gap-1.5"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>Reset to Standard Parameters</span>
+            </button>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -466,3 +574,4 @@ export const FindMyExams: React.FC<FindMyExamsProps> = ({
     </div>
   );
 };
+
