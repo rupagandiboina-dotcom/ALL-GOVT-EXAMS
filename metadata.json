@@ -1,0 +1,6 @@
+{
+  "name": "ExamRadar",
+  "description": "All Government Exams. One Place. Clean, real-time discovery platform for Indian government exam notifications, eligibility matching, deadlines, and calendars.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
