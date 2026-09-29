@@ -13,7 +13,8 @@ import {
   Zap,
   ShieldCheck,
   CheckCircle2,
-  RotateCcw
+  RotateCcw,
+  Bot
 } from 'lucide-react';
 
 import { ExamNotification, ExamCategory, ExamStatus, QualificationLevel } from './types/exam';
@@ -27,10 +28,16 @@ import { SearchAndFilters } from './components/SearchAndFilters';
 import { ExamCalendar } from './components/ExamCalendar';
 import { FindMyExams } from './components/FindMyExams';
 import { Footer } from './components/Footer';
+import { N8nChatModal } from './components/N8nChatModal';
+import { N8nChatFloatingTrigger } from './components/N8nChatFloatingTrigger';
 
 export default function App() {
   // Navigation State
   const [activeTab, setActiveTab] = useState<'home' | 'exams' | 'categories' | 'calendar' | 'find-exams' | 'saved'>('home');
+
+  // n8n Chatbot state
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [chatInitialQuery, setChatInitialQuery] = useState('');
 
   // Dark Mode State with LocalStorage - default to true (Dark Mode) as required
   const [darkMode, setDarkMode] = useState<boolean>(() => {
@@ -243,6 +250,10 @@ export default function App() {
         savedCount={savedExamsList.length}
         darkMode={darkMode}
         setDarkMode={setDarkMode}
+        onOpenChat={() => {
+          setIsChatOpen(true);
+          setChatInitialQuery('');
+        }}
         onSearchClick={() => {
           setActiveTab('exams');
           setTimeout(() => {
@@ -374,6 +385,17 @@ export default function App() {
                   >
                     <CalendarIcon className="w-4 h-4 text-indigo-300" />
                     <span>View Exam Calendar</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setIsChatOpen(true);
+                      setChatInitialQuery('');
+                    }}
+                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs sm:text-sm font-bold shadow-md transition-all hover:scale-105 active:scale-95 border border-purple-400/40"
+                  >
+                    <Bot className="w-4 h-4 text-purple-200" />
+                    <span>Ask Exam AI Agent</span>
                   </button>
                 </div>
               </div>
@@ -753,6 +775,23 @@ export default function App() {
         onClose={() => setSelectedExam(null)}
         isSaved={selectedExam ? savedExamIds.includes(selectedExam.id) : false}
         onToggleSave={toggleSaveExam}
+        onAskAi={(query) => {
+          setIsChatOpen(true);
+          setChatInitialQuery(query);
+        }}
+      />
+
+      {/* Floating n8n AI Chat Trigger */}
+      <N8nChatFloatingTrigger
+        isOpen={isChatOpen}
+        onToggle={() => setIsChatOpen(true)}
+      />
+
+      {/* n8n AI Chatbot Modal/Window */}
+      <N8nChatModal
+        isOpen={isChatOpen}
+        onClose={() => setIsChatOpen(false)}
+        initialQuery={chatInitialQuery}
       />
 
       {/* Footer */}

@@ -9,7 +9,9 @@ import {
   Moon, 
   Menu, 
   X, 
-  Layers
+  Layers,
+  Bot,
+  Sparkles
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -19,6 +21,7 @@ interface NavbarProps {
   darkMode: boolean;
   setDarkMode: (val: boolean | ((prev: boolean) => boolean)) => void;
   onSearchClick: () => void;
+  onOpenChat?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -27,7 +30,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   savedCount,
   darkMode,
   setDarkMode,
-  onSearchClick
+  onSearchClick,
+  onOpenChat
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -96,8 +100,20 @@ export const Navbar: React.FC<NavbarProps> = ({
             })}
           </nav>
 
-          {/* Zone 3: Actions (Search button, Theme Toggle, Mobile Menu Toggle) */}
+          {/* Zone 3: Actions (AI Chat button, Search button, Theme Toggle, Mobile Menu Toggle) */}
           <div className="flex items-center gap-2">
+            {onOpenChat && (
+              <button
+                onClick={onOpenChat}
+                aria-label="Open AI Exam Assistant"
+                className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-gradient-to-r from-indigo-500/10 via-purple-500/10 to-indigo-500/10 hover:from-indigo-500/20 hover:to-purple-500/20 text-indigo-700 dark:text-indigo-300 border border-indigo-200/80 dark:border-indigo-800 transition-all hover:scale-105 active:scale-95 shadow-xs"
+              >
+                <Bot className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 animate-pulse" />
+                <span>AI Chat</span>
+                <span className="text-[9px] uppercase px-1 py-0.2 bg-indigo-600 text-white rounded font-mono">n8n</span>
+              </button>
+            )}
+
             <button
               onClick={onSearchClick}
               aria-label="Search exams"
@@ -158,6 +174,25 @@ export const Navbar: React.FC<NavbarProps> = ({
               </button>
             );
           })}
+
+          {/* Mobile AI Chat Assistant Button */}
+          {onOpenChat && (
+            <button
+              onClick={() => {
+                setMobileMenuOpen(false);
+                onOpenChat();
+              }}
+              className="w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-semibold bg-gradient-to-r from-indigo-600/10 to-purple-600/10 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800/80 transition-colors"
+            >
+              <div className="flex items-center gap-2.5">
+                <Bot className="w-4 h-4 text-indigo-600 dark:text-indigo-400 animate-pulse" />
+                <span>Ask Exam AI Agent</span>
+              </div>
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-600 text-white font-mono font-bold">
+                n8n
+              </span>
+            </button>
+          )}
 
           {/* Dedicated Mobile Theme Switcher Row */}
           <div className="pt-2 mt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between px-3 py-2 text-sm">

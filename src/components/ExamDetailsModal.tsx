@@ -20,7 +20,8 @@ import {
   ShieldCheck,
   Check,
   History,
-  AlertCircle
+  AlertCircle,
+  Bot
 } from 'lucide-react';
 import { ExamNotification } from '../types/exam';
 import { 
@@ -36,13 +37,15 @@ interface ExamDetailsModalProps {
   onClose: () => void;
   isSaved?: boolean;
   onToggleSave?: (examId: string) => void;
+  onAskAi?: (query: string) => void;
 }
 
 export const ExamDetailsModal: React.FC<ExamDetailsModalProps> = ({
   exam,
   onClose,
   isSaved = false,
-  onToggleSave
+  onToggleSave,
+  onAskAi
 }) => {
   const [copiedToast, setCopiedToast] = useState(false);
 
@@ -149,6 +152,19 @@ export const ExamDetailsModal: React.FC<ExamDetailsModalProps> = ({
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
+            {onAskAi && (
+              <button
+                onClick={() => {
+                  onClose();
+                  onAskAi(`Tell me full details about ${exam.title} (${exam.organization}), including eligibility criteria, age limits, syllabus pattern, and application dates.`);
+                }}
+                title="Ask AI Agent about this exam"
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-950/50 text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/40 text-xs font-semibold transition-colors"
+              >
+                <Bot className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                <span className="hidden sm:inline">Ask AI Agent</span>
+              </button>
+            )}
             {onToggleSave && (
               <button
                 onClick={() => onToggleSave(exam.id)}
